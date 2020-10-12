@@ -1,0 +1,5 @@
+source("conv.R")
+dyn.load("conv.so")
+x <- rnorm(100)
+R_conv(0, x)
+R_conv(1, x)
