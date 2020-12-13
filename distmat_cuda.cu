@@ -1,6 +1,10 @@
 #include <R.h>
 #include <math.h>
 #include <cuda.h>
+#include "stdio.h"
+
+#define BLOCK_WIDTH 16
+
 
 extern "C"
 
@@ -19,41 +23,102 @@ __host__ void distmat_cuda(double *arr, int *feats, int *samples, double *res) {
     int s = *samples;
     int size;
 
+    cudaError_t cudaStatus;
+
+    // Choose which GPU to run on, change this on a multi-GPU system.
+    cudaStatus = cudaSetDevice(0);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+    }
+
     // COPY DATA TO DEVICE
     size = f * s * sizeof(double);
-    cudaMalloc((void**)&device_arr, size);
-    cudaMemcpy(device_arr, arr, size, cudaMemcpyHostToDevice);
+    cudaStatus = cudaMalloc((void**)&device_arr, size);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMalloc failed!");
+    }
+    cudaStatus = cudaMemcpy(device_arr, arr, size, cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+    }
 
     // ALLOCATE RESULT DISTANCE MATRIX
     size = s * s * sizeof(double);
-    cudaMalloc((void**)&device_res, size);
-    cudaMemcpy(device_res, res, size, cudaMemcpyHostToDevice);
+    cudaStatus = cudaMalloc((void**)&device_res, size);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMalloc failed!");
+    }
 
     // SETUP CUDA KERNEL
-    int num_blocks = samples;
-    dim3 dimGrid(num_blocks, 1, 1);
-    dim3 dimBlock(BLOCK_WIDTH, 1, 1);
+    dim3 threadsPerBlock(8, 8, 1);
+    dim3 numBlocks(
+        ceil(double(s) / threadsPerBlock.x),
+        ceil(double(s) / threadsPerBlock.y),
+        1
+    );
+
+    printf("threadsPerBlock\t%d : %d : %d\n", threadsPerBlock.x, threadsPerBlock.y, threadsPerBlock.z);
+    printf("numBlocks\t%d : %d : %d\n", numBlocks.x, numBlocks.y, numBlocks.z);
+
+    // int numBlocks = ceil(double(s) / double(BLOCK_WIDTH));
+    // dim3 dimGrid(numBlocks, numBlocks, 1);
+    // dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH, 1);
+
+    // printf("numBlock\t%d\n", numBlocks);
+    // printf("dimGrid\t\t%d : %d : %d\n", dimGrid.x, dimGrid.y, dimGrid.z);
+    // printf("dimBlock\t%d : %d : %d\n", dimBlock.x, dimBlock.y, dimBlock.z);
 
     // STARTS KERNEL
-    distmat_kernel << < dimGrid, dimBlock >> > (device_arr, f, s, device_res);
+    // distmat_kernel << < dimGrid, dimBlock >> > (device_arr, f, s, device_res);
+    distmat_kernel << < threadsPerBlock, numBlocks >> > (device_arr, f, s, device_res);
+
+    // Check for any errors launching the kernel
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+    }
 
     // WAITS FOR THE KERNEL TO FINISH
-    cudaDeviceSynchronize();
+    cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+    }
 
     // TRANSFER DATA FROM DEVICE TO HOST
     size = s * s * sizeof(double);
-    cudaMemcpy(res, device_res, size, cudaMemcpyDeviceToHost);
+    cudaStatus = cudaMemcpy(res, device_res, size, cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+    }
 
     // FREE DEVICE
     cudaFree(device_arr);
     cudaFree(device_res);
 
-    // res[0] = 1;
+    Rprintf("%s", cudaGetErrorString(cudaStatus));
+
+    // cudaDeviceReset must be called before exiting in order for profiling and
+    // tracing tools such as Nsight and Visual Profiler to show complete traces.
+    cudaStatus = cudaDeviceReset();
+    if (cudaStatus != cudaSuccess) {
+        Rprintf("cudaDeviceReset failed!");
+    }
+    
 }
 
 
 __global__ void distmat_kernel(double* arr, int feats, int samples, double* res) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    res[i + samples * j] = i;
+    uint i = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint j = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    uint k;
+    double aux = 0;
+    for (k = 0; k < feats; k++) {
+        // loop through features
+        double diff = arr[i + samples * k] - arr[j + samples * k];
+        aux += pow(diff, 2);
+    }
+
+    res[i + samples * j] = sqrt(aux);
+    // res[i + samples * j] = 1.0;
 }
