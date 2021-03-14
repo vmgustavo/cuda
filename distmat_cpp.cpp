@@ -13,11 +13,13 @@ Rcpp::NumericMatrix cpp_distmat(const Rcpp::NumericMatrix& mat) {
     // Crux of the algorithm
     for (i = 0; i < samples; i++) {
         for (j = 0; j < samples; j++) {
-            double aux = 0;
-            for (k = 0; k < features; k++) {
-                aux += pow(mat(i, k) - mat(j, k), 2);
+            if (j > i) {
+                double aux = 0;
+                for (k = 0; k < features; k++) {
+                    aux += pow(mat(i, k) - mat(j, k), 2);
+                }
+                res(i, j) = sqrt(aux);
             }
-            res(i, j) = sqrt(aux);
         }
     }
 

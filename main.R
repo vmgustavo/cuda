@@ -52,14 +52,13 @@ distmat_cuda_dyn <- function(mat) {
 }
 
 distmat_torch <- function(mat) {
-  result <- as_array(torch_pdist(torch_tensor(mat)))
-  squareform(result)
+  as_array(torch_pdist(torch_tensor(mat)))
 }
 # =============================================================================
 
 # SETUP
-size <- 1000
-feats <- 10
+size <- 10000
+feats <- 500
 feat_1D <- matrix(abs((9 * rnorm(size))), nrow=size)
 feat_2D <- matrix(abs((9 * rnorm(size * feats))), nrow=size)
 times <- dict()
@@ -128,18 +127,18 @@ sprintf('DynLoad 2D Time Elapsed (s): %.06f', aux)
 
 # CUDADyn
 st <- Sys.time()
-dyn_1D <- distmat_c(feat_1D)
+cuda_1D <- distmat_c(feat_1D)
 en <- Sys.time()
 aux <- difftime(en, st, units='secs')[[1]]
-times$set('dynl-1d', aux)
-sprintf('DynLoad 1D Time Elapsed (s): %.06f', aux)
+times$set('cuda-1d', aux)
+sprintf('CUDA DynLoad 1D Time Elapsed (s): %.06f', aux)
 
 st <- Sys.time()
-dyn_2D <- distmat_c(feat_2D)
+cuda_2D <- distmat_c(feat_2D)
 en <- Sys.time()
 aux <- difftime(en, st, units='secs')[[1]]
-times$set('dynl-2d', aux)
-sprintf('DynLoad 2D Time Elapsed (s): %.06f', aux)
+times$set('cuda-2d', aux)
+sprintf('CUDA DynLoad 2D Time Elapsed (s): %.06f', aux)
 
 # TORCH
 st <- Sys.time()
