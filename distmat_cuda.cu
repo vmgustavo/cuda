@@ -28,25 +28,25 @@ __host__ void distmat_cuda(double *arr, int *feats, int *samples, double *res) {
     // Choose which GPU to run on, change this on a multi-GPU system.
     cudaStatus = cudaSetDevice(0);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+        Rprintf("cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
     }
 
     // COPY DATA TO DEVICE
     size = f * s * sizeof(double);
     cudaStatus = cudaMalloc((void**)&device_arr, size);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
+        Rprintf("cudaMalloc failed!");
     }
     cudaStatus = cudaMemcpy(device_arr, arr, size, cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
+        Rprintf("cudaMemcpy failed!");
     }
 
     // ALLOCATE RESULT DISTANCE MATRIX
     size = s * s * sizeof(double);
     cudaStatus = cudaMalloc((void**)&device_res, size);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
+        Rprintf("cudaMalloc failed!");
     }
 
     // SETUP CUDA KERNEL
@@ -57,8 +57,8 @@ __host__ void distmat_cuda(double *arr, int *feats, int *samples, double *res) {
         1
     );
 
-    printf("threadsPerBlock\t%d : %d : %d\n", threadsPerBlock.x, threadsPerBlock.y, threadsPerBlock.z);
-    printf("numBlocks\t%d : %d : %d\n", numBlocks.x, numBlocks.y, numBlocks.z);
+    Rprintf("threadsPerBlock | %d : %d : %d\n", threadsPerBlock.x, threadsPerBlock.y, threadsPerBlock.z);
+    Rprintf("numBlocks       | %d : %d : %d\n", numBlocks.x, numBlocks.y, numBlocks.z);
 
     // int numBlocks = ceil(double(s) / double(BLOCK_WIDTH));
     // dim3 dimGrid(numBlocks, numBlocks, 1);
@@ -75,27 +75,27 @@ __host__ void distmat_cuda(double *arr, int *feats, int *samples, double *res) {
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+        Rprintf("addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
     }
 
     // WAITS FOR THE KERNEL TO FINISH
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+        Rprintf("cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
     }
 
     // TRANSFER DATA FROM DEVICE TO HOST
     size = s * s * sizeof(double);
     cudaStatus = cudaMemcpy(res, device_res, size, cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
+        Rprintf("cudaMemcpy failed!");
     }
 
     // FREE DEVICE
     cudaFree(device_arr);
     cudaFree(device_res);
 
-    Rprintf("%s", cudaGetErrorString(cudaStatus));
+    Rprintf("%s\n", cudaGetErrorString(cudaStatus));
 
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.

@@ -1,5 +1,5 @@
 packages <- c(
-  "torch", "Rcpp", "ggplot2", "collections"
+  "torch", "Rcpp", "ggplot2", "collections", "pracma"
 )
 
 for (package in packages) {
